@@ -7,7 +7,7 @@ import {serviceId, templateId, publicKey} from '../config'
 
 const intervals = ["minute", "hour", "day", "week", "month", "year"]
 
-export default function ReminderForm({action, isAdd, url, handleMethod}) {
+export default function ReminderForm({isAdd, url, handleMethod}) {
   
   const initInfo = {name: "", email: "", activity: "", interval: intervals[2], code: ""};
   const [info, setInfo] = useState(initInfo);

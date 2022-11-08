@@ -3,81 +3,95 @@ const cors = require("cors");
 const app = express();
 const port = 4000;
 const cron = require("node-cron");
-const jobs = [];
+const jobs = {};
 const {service, user, pass, uri, template} = require("./config");
 const mailer = require("nodemailer");
 const transporter = mailer.createTransport({service, auth: {user, pass}});
 const {MongoClient} = require("mongodb");
+const { start } = require("repl");
 const client = new MongoClient(uri);
+let setup = false;
+let currIndex = -1;
 
-app.use(cors());
+init();
+const timer = setInterval(checkSetup, 1000);
 
-app.use(express.json());
+function run() {
+    app.use(cors());
 
-app.get("/:reminderId", async (req, res) => {
+    app.use(express.json());
+
+    app.get("/:reminderId", (req, res) => {
+        handleReminders({type: "get", req, res});
+    });
+
+    app.post("/", (req, res) => {
+        handleReminders({type: "post", req, res});
+    });
+
+    app.delete("/:reminderId", (req, res) => {
+        handleReminders({type: "delete", req, res})
+    });
+
+    app.listen(port, () => {
+        console.log(`App listening on port ${port}`)
+    });
+}
+async function init() {
+    await handleReminders({type: "init"});
+    setup = true;
+}
+
+async function handleReminders({type, req, res}) {
     try {
-        const reminderId = parseInt(req.params.reminderId);
         await client.connect();
-        const result = await client.db("ttpDatabase").collection("reminders").findOne({reminderId});
-        res.send(result);
+        const collection = client.db("ttpDatabase").collection("reminders");
+        if (type === "init") {
+            const reminders = await collection.find().toArray();
+            reminders.forEach(({name, email, activity, reminderId, pattern}) => {
+                if (reminderId > currIndex) currIndex = reminderId;
+                jobs[reminderId] = cron.schedule(pattern, () => sendEmail({name, email, activity, reminderId}));
+            });
+        }
+        else if (type === "get") {
+            const reminderId = parseInt(req.params.reminderId);
+            const result = await collection.findOne({reminderId});
+            res.send(result);
+        }
+        else if (type === "post") {
+            const {name, email, activity, interval} = req.body;
+            const pattern = getPattern(interval);
+            const reminderId = ++currIndex;
+            await collection.insertOne({...req.body, reminderId, pattern});
+            jobs[reminderId] = cron.schedule(pattern, () => sendEmail({name, email, activity, reminderId}));
+            res.send("OK");
+        }
+        else if (type === "delete") {
+            const reminderId = parseInt(req.params.reminderId);
+            await collection.deleteOne({reminderId});
+            jobs[reminderId].stop();
+            res.send("OK");
+        }
     } catch(e) {
         console.error(e);
     } finally {
         client.close();
     }
-});
+}
 
-app.post("/", async (req, res) => {
-    const {name, email, activity, interval} = req.body;
-    let pattern;
-    if (interval === "minute") {
-        pattern = "* * * * *";
-    }
-    else if (interval === "hour") {
-        pattern = "0 * * * *";
-    }
-    else if (interval === "day") {
-        pattern = "0 0 * * *";
-    }
-    else if (interval === "week") {
-        pattern = "0 0 * * 0";
-    }
-    else if (interval === "month") {
-        pattern = "0 0 1 * *";
-    }
-    else {
-        pattern = "0 0 1 1 *";
-    }
-    const reminderId = jobs.length;
-    try {
-        await client.connect();
-        await client.db("ttpDatabase").collection("reminders").insertOne({...req.body, reminderId});
-    } catch(e) {
-        console.error(e);
-    } finally {
-        client.close();
-    }
-    jobs.push(cron.schedule(pattern, () => sendEmail({name, email, activity, reminderId})));
-    res.send("OK");
-});
-
-app.delete("/:reminderId", async (req, res) => {
-    const reminderId = parseInt(req.params.reminderId);
-    try {
-        await client.connect();
-        await client.db("ttpDatabase").collection("reminders").deleteOne({reminderId});
-    } catch(e) {
-        console.error(e);
-    } finally {
-        client.close();
-    }
-    jobs[reminderId].stop();
-    res.send("OK");
-});
-
-app.listen(port, () => {
-    console.log(`App listening on port ${port}`)
-});
+function getPattern(interval) {
+    if (interval === "minute")
+        return "* * * * *";
+    if (interval === "hour")
+        return "0 * * * *";
+    if (interval === "day")
+        return "0 0 * * *";
+    if (interval === "week")
+        return "0 0 * * 0";
+    if (interval === "month")
+        return "0 0 1 * *";
+    return "0 0 1 1 *";
+}
 
 function sendEmail({name, email, activity, reminderId}) {
     const mailOptions = {
@@ -93,4 +107,11 @@ function sendEmail({name, email, activity, reminderId}) {
             console.log('Email sent: ' + info.response);
         }
     });
+}
+
+function checkSetup() {
+    if (setup) {
+        clearInterval(timer);
+        run();
+    }
 }

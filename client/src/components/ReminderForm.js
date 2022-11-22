@@ -63,7 +63,7 @@ export default function ReminderForm({isAdd, url, handleMethod}) {
           mode: "cors"
         });
       }
-      if (res.statusText === "OK") {
+      if (res.ok) {
         alert(`${isAdd ? "Addition" : "Deletion"} Complete`);
         setDone(false);
         setInfo(initInfo);

@@ -8,7 +8,6 @@ const {service, user, pass, uri, template} = require("./config");
 const mailer = require("nodemailer");
 const transporter = mailer.createTransport({service, auth: {user, pass}});
 const {MongoClient} = require("mongodb");
-const { start } = require("repl");
 const client = new MongoClient(uri);
 let setup = false;
 let currIndex = -1;
@@ -17,7 +16,7 @@ init();
 const timer = setInterval(checkSetup, 1000);
 
 function run() {
-    app.use(cors());
+    app.use(cors({origin: "https://trust-the-process.vercel.app"}));
 
     app.use(express.json());
 

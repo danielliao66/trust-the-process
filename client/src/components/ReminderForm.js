@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useParams } from 'react-router-dom';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Button from '@mui/material/Button';
@@ -7,8 +8,16 @@ import {serviceId, templateId, publicKey} from '../config'
 
 const intervals = ["minute", "hour", "day", "week", "month", "year"]
 
-export default function ReminderForm({isAdd, url, handleMethod}) {
-  
+export default function ReminderForm({setPage}) {
+  const {id} = useParams();
+  const isAdd = id === undefined;
+  const [isFresh, setIsFresh] = useState(true);
+  if (isFresh) {
+    setPage(1);
+    setIsFresh(false);
+  }
+  const url = "https://trust-the-process.onrender.com" + (isAdd ? "" : `/${id}`);
+  const handleMethod = isAdd ? "POST" : "DELETE";
   const initInfo = {name: "", email: "", activity: "", interval: intervals[2], code: ""};
   const [info, setInfo] = useState(initInfo);
   const [done, setDone] = useState(false);
@@ -81,9 +90,10 @@ export default function ReminderForm({isAdd, url, handleMethod}) {
   };
   return (
     <div>
+       <br/>
       <TextField id="name" disabled={isAdd ? false : true} label="Name" value={info.name} variant="filled" onChange={handleChange}/> <br/> <br/>
       <TextField id="email" disabled={isAdd ? false : true} label="Email" value={info.email} variant="filled" onChange={handleChange}/> <br/> <br/>
-      <TextField id="activity" disabled={isAdd ? false : true} label="Activity" value={info.activity} variant="filled" onChange={handleChange}/> <br/> <br/>
+      <TextField id="activity" disabled={isAdd ? false : true} label="Activity" value={info.activity} variant="filled" onChange={handleChange}/> <br/> <br/> <br/>
       <TextField id="interval" select disabled={isAdd ? false : true} label="Interval" value={info.interval} onChange={handleChange}>
         {intervals.map((option) => (
           <MenuItem key={option} value={option}>
